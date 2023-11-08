@@ -1,1 +1,7 @@
 # frappe -- https://github.com/frappe/frappe is installed via 'bench init'
+
+numpy
+scipy
+minio
+python-i18n
+geopy

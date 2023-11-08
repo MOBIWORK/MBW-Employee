@@ -126,6 +126,12 @@ app_license = "MIT"
 #	}
 # }
 
+doc_events = {
+    "Attendance": {
+        "before_insert": "mbw_employee.attendance.calculate_late_working_hours"
+    }
+}
+
 # Scheduled Tasks
 # ---------------
 
@@ -215,3 +221,11 @@ app_license = "MIT"
 # auth_hooks = [
 #	"mbw_employee.auth.validate"
 # ]
+
+
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": [["module", "in", ("MBW Employee")]]
+    },
+]
