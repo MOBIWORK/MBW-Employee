@@ -26,11 +26,10 @@ from frappe.utils.file_manager import (
 )
 from frappe.utils import get_files_path
 
-from mbw_employee.translations.language import translations
-
-# chấm công nhân viên trong khoảng thời gian
+from mbw_employee.config_translate import i18n
 
 
+# Take employee timekeeping for a period of time
 @frappe.whitelist()
 def get_list_cham_cong(**kwargs):
     try:
@@ -47,14 +46,6 @@ def get_list_cham_cong(**kwargs):
             kwargs.get('page')) <= 0 else int(kwargs.get('page')) - 1
         start = page * page_size
 
-        # shift_type = frappe.db.get_list('Employee Checkin',
-        #     filters=my_filter,
-        #     fields=['employee_name', 'log_type', 'time', "shift",'device_id',"shift_start","shift_end"],
-        #     order_by='time desc',
-        #     start=start,
-        #     page_length=page_size,
-        # )
-
         EmployeeCheckin = frappe.qb.DocType("Employee Checkin")
         ShiftType = frappe.qb.DocType("Shift Type")
 
@@ -64,15 +55,12 @@ def get_list_cham_cong(**kwargs):
                       .where((EmployeeCheckin.time >= start_time) & (EmployeeCheckin.time <= end_time))
                       .select(EmployeeCheckin.shift, EmployeeCheckin.log_type, EmployeeCheckin.time, EmployeeCheckin.device_id, ShiftType.start_time, ShiftType.end_time).run(as_dict=True)
                       )
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, shift_type)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), shift_type)
     except Exception as e:
-        message = translations.get("error").get(get_language())
-        gen_response(500, message, [])
-
-# danh sách đơn từ nhân viên
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
+# list of applications from employees
 @frappe.whitelist()
 def get_list_don_tu(**kwargs):
     try:
@@ -99,15 +87,12 @@ def get_list_don_tu(**kwargs):
                                               start=start,
                                               page_length=page_size,
                                               )
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, leave_allocation)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), leave_allocation)
     except Exception as e:
-        message = translations.get("error").get(get_language())
-        gen_response(500, message, [])
-
-# lay danh sach nhan vien
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
+# List of employees
 @frappe.whitelist(methods='GET')
 def get_list_employee(**kwargs):
     try:
@@ -132,29 +117,24 @@ def get_list_employee(**kwargs):
             user_image = doc.get('image')
             doc['image'] = validate_image(user_image)
 
-        message = "Thành công"
         result = {
             "data": list_employee,
             "total_doc": total_doc
         }
-        gen_response(200, message, result)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), result)
     except Exception as e:
-        print(e)
-        message = "Có lỗi xảy ra"
-        gen_response(500, message, [])
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
-# chi tiết ddwon từ nhân viên
+# application details from staff
 @frappe.whitelist(methods='GET')
 def get_don_chi_tiet(name):
     data = frappe.get_doc('Leave Allocation', name
                           )
-    message = translations.get("successfully").get(get_language())
-    gen_response(200, message, data)
-
-# thông tin nhân viên
+    gen_response(200, i18n.t('translate.successfully', locale=get_language()), data)
 
 
+# Get employee information
 @frappe.whitelist()
 def get_info_employee():
     try:
@@ -172,16 +152,13 @@ def get_info_employee():
         last_checkin_type = frappe.get_last_doc("Employee Checkin")
         info['shift_status'] = last_checkin_type.get(
             'log_type') if last_checkin_type else "OUT"
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, info)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), info)
 
     except Exception as e:
-        message = translations.get("error").get(get_language())
-        gen_response(500, message, [])
-
-# Dịch vụ chấm công
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
+# Timekeeping service
 @frappe.whitelist()
 def checkin_shift(**data):
     try:
@@ -189,26 +166,14 @@ def checkin_shift(**data):
         time_check = datetime.strptime(
             data.get('time'), "%Y-%m-%d %H:%M:%S").time()
 
-        # EmployeeCheckin = frappe.qb.DocType('Employee Checkin')
-        # ShiftType = frappe.qb.DocType('Shift Type')
-
-        # last_checkin = (frappe.qb.from_()
-
-        # )
-        print(datetime.strptime(data.get('time'), "%Y-%m-%d %H:%M:%S").time())
-        # last_checkin = frappe.get_last_doc("Employee Checkin",filters = {"employee": employee.name,"shift": data.get})
-        # if last_checkin.get("log_type") == data.get("log_type"):
-        #      return gen_response(500, "You have to " + "checkin first" if data.get("log_type") == "OUT" else "checkout first")
         new_check = frappe.new_doc("Employee Checkin")
         data["device_id"] = json.dumps({"longitude": data.get(
             "longitude"), "latitude": data.get("latitude")})
         for field, value in dict(data).items():
             setattr(new_check, field, value)
         new_check.insert()
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, new_check)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), new_check)
     except frappe.DoesNotExistError:
         frappe.local.response["http_status_code"] = 404
         frappe.clear_messages()
-        message = translations.get("error").get(get_language())
-        gen_response(500, message, [])
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])

@@ -12,9 +12,9 @@ from mbw_employee.api.common import (
 
 from datetime import datetime
 
-from mbw_employee.translations.language import translations
+from mbw_employee.config_translate import i18n
 
-# lấy cấc doctype
+# Get the doctype
 TimeSheetPosition = frappe.qb.DocType('TimeSheet Position')
 TimeSheetWifi = frappe.qb.DocType('TimeSheet Wifi')
 TimeSheetWifiIntermediate = frappe.qb.DocType('TimeSheet Wifi intermediate')
@@ -22,9 +22,8 @@ EmployeeChild = frappe.qb.DocType('Employee Child')
 ShiftAssignment = frappe.qb.DocType('Shift Assignment')
 ShiftType = frappe.qb.DocType('Shift Type')
 
-# Lấy danh sách ca
 
-
+# Get the list of cases
 @frappe.whitelist()
 def get_list_ca(**kwargs):
     try:
@@ -49,21 +48,16 @@ def get_list_ca(**kwargs):
                                         start=start,
                                         page_length=page_size,
                                         )
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, shift_type)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), shift_type)
     except Exception as e:
-        message = translations.get("error").get(get_language())
-        gen_response(500, message, [])
-
-# Danh sách địa điểm chấm công
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
+# Get list of attendance locations
 @frappe.whitelist(methods="GET")
 def get_list_timesheet_location(**kwargs):
     try:
         employee_id = get_employee_id()
-        print("employee ",kwargs)      
-
         mobile_long = False if not kwargs.get(
             'longitude') else float(kwargs.get('longitude'))
         mobile_lat = False if not kwargs.get(
@@ -96,19 +90,16 @@ def get_list_timesheet_location(**kwargs):
                 x["distance"] = distance
                 x["wifi"] = wifi
             timesheet_position = sorted(timesheet_position, key=lambda x: x['distance'])
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, {
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), {
             "timesheet_position": timesheet_position,
             "shift_type": shift_type
         })
 
     except Exception as e:
-        message = translations.get("error").get(get_language())
-        gen_response(500, message, [])
-
-# wifi địa điểm chấm công
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
+# wifi attendance location
 def get_wifi_timesheet(name):
     data = (frappe.qb.from_(TimeSheetPosition)
             .inner_join(TimeSheetWifiIntermediate)

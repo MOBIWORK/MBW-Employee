@@ -1,9 +1,11 @@
 import frappe
-from mbw_employee.api.common import (gen_response,exception_handel,get_info_employee,get_employee_id,get_language, post_image)
+from mbw_employee.api.common import (gen_response,exception_handel,get_info_employee,get_employee_id,get_language, post_image, validate_image)
 from datetime import datetime
-from mbw_employee.translations.language import translations 
 import base64
-# cập nhật tài khoản
+from mbw_employee.config_translate import i18n
+
+
+# update account
 @frappe.whitelist()
 def update_profile(**kwargs):
     try:
@@ -54,28 +56,27 @@ def update_profile(**kwargs):
                     kwargs['date_of_birth'] = dob
             doc.save()
         
-        gen_response(200, "Cập nhật thành công",kwargs)
+        gen_response(200, i18n.t('translate.update_success', locale=get_language()),kwargs)
 
     except Exception as e:
-        gen_response(500, "", [])
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
         return exception_handel(e)
 
 
-# lấy thông tin nhân viên
+# Get employee information
 @frappe.whitelist(methods="GET")
 def get_employee_info() :
     try:
         employee_id = get_employee_id()
-        print("dữ liệu user",employee_id)
         if not employee_id:
-            gen_response(500 ,"Lỗi gì đó",[])
-            return 
+            gen_response(404 ,i18n.t('translate.user_not_found', locale=get_language()),[])
+            return None
         user_info = get_info_employee(name= employee_id,fields=["employee", "employee_name","gender", "date_of_birth", "date_of_joining" ,"salutation", "image","user_id","department", "designation","cell_number", "current_address"])
         user_info['date_of_birth'] = user_info['date_of_birth']
         base_url = frappe.utils.get_request_site_address()
         if user_info['image']:
-            user_info['image'] = base_url + user_info['image']
+            user_info['image'] = validate_image(user_info['image'])
 
-        gen_response(200,"",user_info)
+        gen_response(200,i18n.t('translate.successfully', locale=get_language()),user_info)
     except Exception as e:
-        gen_response(500,e, [])
+        gen_response(500,i18n.t('translate.error', locale=get_language()), [])

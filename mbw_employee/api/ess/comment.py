@@ -6,13 +6,14 @@ from mbw_employee.api.common import (
     BASE_URL,
     get_user_id,
     get_employee_by_user,
-
+    get_language
 )
 from frappe.query_builder import DocType
 from frappe.query_builder.functions import Count
 from datetime import datetime
 from pypika import Order, CustomFunction
 import json
+from mbw_employee.config_translate import i18n
 
 
 @frappe.whitelist(methods='GET')
@@ -58,16 +59,13 @@ def get_list_comment_leave(**kwargs):
             doc['user_image'] = validate_image(user_image)
             del doc['image']
 
-        message = "Thành công"
         result = {
             "data": list_employee,
             "total_doc": total_doc
         }
-        gen_response(200, message, result)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), result)
     except Exception as e:
-        print(e)
-        message = "Có lỗi xảy ra"
-        gen_response(500, message, [])
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
 
 @frappe.whitelist(methods='POST')
@@ -79,21 +77,18 @@ def post_comment_leave(**kwargs):
         info_employee = get_employee_by_user(get_user_id(), ["*"])
 
         if not info_employee:
-            message = "Không tìm thấy người dùng."
-            gen_response(404, message, [])
+            gen_response(404, i18n.t('translate.user_not_found', locale=get_language()), [])
             return None
 
         if not type_comment or not frappe.db.get_value('DocType', type_comment):
-            message = "Loại bình luận không đúng."
-            gen_response(404, message, [])
+            gen_response(404, i18n.t('translate.cmt_correct', locale=get_language()), [])
             return None
 
         if not frappe.db.exists(type_comment, name_doc, cache=True):
-            message = "Không tìm thấy đơn từ."
-            gen_response(404, message, [])
+            gen_response(404, i18n.t('translate.leave_not_found', locale=get_language()), [])
             return None
 
-        # them moi comment
+        # add any comments
         doc_comment = frappe.new_doc('Comment')
         doc_comment.reference_doctype = type_comment
         doc_comment.reference_name = name_doc
@@ -103,9 +98,6 @@ def post_comment_leave(**kwargs):
         doc_comment.comment_email = info_employee.get('user_id')
         doc_comment.insert(ignore_permissions=True)
 
-        message = "Thành công"
-        gen_response(200, message, doc_comment.as_dict(True))
+        gen_response(200, i18n.t('translate.create_success', locale=get_language()), doc_comment.as_dict(True))
     except Exception as e:
-        print(e)
-        message = "Có lỗi xảy ra"
-        gen_response(500, message, [])
+        gen_response(500, i18n.t('translate.error', locale=get_language()), [])

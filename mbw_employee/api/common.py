@@ -21,15 +21,11 @@ import array
 BASE_URL = frappe.utils.get_request_site_address()
 
 
-
-
-
-# ==================================================================================================
 ShiftType = frappe.qb.DocType('Shift Type')
 ShiftAssignment = frappe.qb.DocType('Shift Assignment')
-# lấy ca hiện tại và trạng thái của nó
 
 
+# get the current shift and its status
 def get_shift_type_now(employee_name):
     time_now = datetime.now()
 
@@ -45,8 +41,11 @@ def get_shift_type_now(employee_name):
                               .orderby(EmployeeCheckin.time,order= Order.desc)
                               .select('*')
                               .run(as_dict=True))
-        if not last_checkin_today or last_checkin_today[0].get("log_type") == "OUT":
+        if not last_checkin_today:
             shift_type_now = shift_now(employee_name, time_now)
+            shift_status = False
+        elif last_checkin_today[0].get("log_type") == "OUT":
+            shift_type_now = nextshift(employee_name, time_now)
             shift_status = False
         else:
             shift_type_now = frappe.db.get_value('Shift Type', {"name": last_checkin_today[0].get(
@@ -61,7 +60,7 @@ def get_shift_type_now(employee_name):
         "shift_status": shift_status
     }
 
-# lấy danh sách ca theo từng ngày
+# Get a list of shifts by day
 
 
 def today_list_shift(employee_name, time_now):
@@ -92,7 +91,7 @@ def inshift(employee_name,time_now) :
                       .select(ShiftType.name, ShiftType.start_time, ShiftType.end_time, ShiftType.allow_check_out_after_shift_end_time, ShiftType.begin_check_in_before_shift_start_time)
                       .run(as_dict=True)
                 )
-    print("trong ca",data)
+
     if len(data) == 0:
         return False
     return data[0]
@@ -106,7 +105,7 @@ def nextshift(employee_name,time_now) :
                         .select(ShiftType.name, ShiftType.start_time, ShiftType.end_time, ShiftType.allow_check_out_after_shift_end_time, ShiftType.begin_check_in_before_shift_start_time)
                         .run(as_dict=True)
                         )
-    print("ca tiep",data)
+
     if len(data) == 0:
         return False
     return data[0]
@@ -123,11 +122,7 @@ def shift_now(employee_name, time_now):
     return in_shift
 
 
-# ======================================================================================
-
-
-# lấy báo cáo nhân viên
-
+# Get employee reports
 def get_report_doc(report_name):
     doc = frappe.get_doc("Report", report_name)
     doc.custom_columns = []
@@ -152,7 +147,7 @@ def get_report_doc(report_name):
     return doc
 
 
-# Tính khoảng cách giữa hai vị trí
+# Calculate the distance between two locations
 R = 6373.0
 
 from geopy.distance import great_circle
@@ -161,9 +156,7 @@ def distance_of_two(long_client, lat_client, long_compare, lat_compare):
     point2 = (lat_compare,long_compare)
     return great_circle(point1, point2).meters
 
-# định nghĩa trả về
-
-
+# return definition
 def gen_response(status, message, result=[]):
     frappe.response["http_status_code"] = status
     if status == 500:
@@ -260,12 +253,6 @@ def get_global_defaults():
 
 
 def remove_default_fields(data):
-    # Example usage:
-    # remove_default_fields(
-    #     json.loads(
-    #         frappe.get_doc("Address", "name").as_json()
-    #     )
-    # )
     for row in [
         "owner",
         "creation",
@@ -386,7 +373,7 @@ def last_day_of_month(any_day):
 
 def group_fields(data,fields):
     list_fields = []
-    print(list_fields)
+
     for x in data:
         if not x[fields] in list_fields: list_fields.append(x[fields])
     new_group = {}
@@ -411,3 +398,15 @@ def basic_auth(username, password):
 
 
 
+def get_ip_network():
+    try:
+        # # Get the user's IP address from the "X-Forwarded-For" HTTP header
+        remote_ip = frappe.get_request_header("X-Forwarded-For")
+
+        if not remote_ip:
+            # If X-Forwarded-For is not available, try getting it from REMOTE_ADDR
+            remote_ip = frappe.local.request.environ.get('REMOTE_ADDR')
+
+        return remote_ip        
+    except Exception as e:
+        return e

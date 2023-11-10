@@ -15,15 +15,17 @@ from mbw_employee.api.common import (
     distance_of_two,
     get_language,
     validate_image,
-    valid_number
+    valid_number,
+    get_language
 )
+
+from mbw_employee.config_translate import i18n
 
 import requests
 import base64
 from datetime import datetime
 
 from frappe.utils import get_files_path
-from mbw_employee.translations.language import translations
 
 FIELDS_VALID = [
     {
@@ -82,7 +84,7 @@ def insert(**kwargs):
             if not kwargs.get(key):
                 kwargs[key] = field.get("default")
 
-        # them moi kpi
+        # add new kpi
         doc_new = frappe.new_doc('KPI Integration Data')
         doc_new.parenttype = "Employee"
         doc_new.parentfield = "kpi_data"
@@ -96,6 +98,6 @@ def insert(**kwargs):
         doc_new.vieng_tham = kwargs.get("vieng_tham")
         doc_new.insert(ignore_permissions=True)
 
-        return gen_response(status=200, message="Thành công.", result=doc_new)
+        return gen_response(200, i18n.t('translate.create_success', locale=get_language()), doc_new)
     except Exception as e:
-        return gen_response(status=500, message=str(e), result={})
+        return gen_response(500, i18n.t('translate.error', locale=get_language()), result={})

@@ -8,37 +8,74 @@ from mbw_employee.api.common import (
     get_shift_type_now,
     today_list_shift,
     delta_to_time_now,
-    group_fields
+    group_fields,
+    get_ip_network
 )
-
+from frappe.client import validate_link
+from frappe.desk.search import search_link, build_for_autosuggest, search_widget
 from datetime import datetime
-from mbw_employee.translations.language import translations
-from pypika import Field,functions, Order, CustomFunction
-# Dịch vụ chấm công
+from pypika import  Order, CustomFunction
+from mbw_employee.config_translate import i18n
 
 
+# Timekeeping service
 @frappe.whitelist(methods="POST")
 def checkin_shift(**data):
     try:
-        # employee = get_employee_id()
-        # time_check = datetime.fromtimestamp(int(data.get('time')))  
-        time_check_server = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")    
-        new_check = frappe.new_doc("Employee Checkin")
-        data["device_id"] = json.dumps({"longitude": data.get(
-            "longitude"), "latitude": data.get("latitude")})
-        # data["time"] = time_check_server
-        for field, value in dict(data).items():
-            setattr(new_check, field, value)
-        setattr(new_check,"image_attach",data.get("image"))
-        new_check.insert()
-        message = translations.get("create_success").get(get_language())
-        gen_response(200,message,new_check)
+        ip_network = get_ip_network()
+        id_position = dict(data).get("timesheet_position")
+        wifi_mac = dict(data).get("wifi_mac")
+        timesheet_position_detail = frappe.get_doc("TimeSheet Position",id_position)
+        name= get_employee_id()
+        if timesheet_position_detail:
+            wifi_position = timesheet_position_detail.get('wifi')
+            mac_position = timesheet_position_detail.get('mac')
+            is_limited = timesheet_position_detail.get("is_limited")
+            employees = timesheet_position_detail.get("employees")
+            if is_limited != "All employee" :
+                is_enable_checkin = False
+                for employee in employees:
+                    if employee.get("employee_id") == name:
+                        is_enable_checkin = True
+                        break
+                if not is_enable_checkin :
+                    gen_response(500, i18n.t('translate.no_location_shift', locale=get_language()),[])
+                    return
+                
+            in_wf = False
+            in_mac = False
+            for wf in wifi_position: 
+                if ip_network == wf.get("wifi_address") or wifi_mac == wf.get("wifi_address"):
+                    in_wf = True
+                    break
+            for mc in mac_position: 
+                if ip_network == mc.get("mac_address") or wifi_mac == mc.get("mac_address"):
+                    in_mac = True
+                    break
+            if not in_mac and not in_wf :
+                gen_response(500, i18n.t('translate.error_network', locale=get_language()),[])
+                return
+    
+            
+            shift_now = get_shift_type_now(name) 
+            if shift_now.get("shift_type_now"):   
+                new_check = frappe.new_doc("Employee Checkin")
+                data["device_id"] = json.dumps({"longitude": data.get(
+                    "longitude"), "latitude": data.get("latitude")})
+                for field, value in dict(data).items():
+                    setattr(new_check, field, value)
+                log_type = "IN" if shift_now.get('shift_status') == False or shift_now.get('shift_status') == "OUT" else "OUT"
+                setattr(new_check,'log_type',log_type)
+                setattr(new_check,"image_attach",data.get("image"))
+                new_check.insert()
+                gen_response(200,i18n.t('translate.successfully', locale=get_language()),new_check)
+                return
+            gen_response(500, i18n.t('translate.no_shift', locale=get_language()),None)
     except frappe.DoesNotExistError:
-        message = translations.get("error").get(get_language())
-        gen_response(404, message, []) 
+        gen_response(404, i18n.t('translate.error', locale=get_language()), []) 
 
-# danh sách chấm công nhân viên
 
+# employee attendance list
 @frappe.whitelist(methods='GET')
 def get_list_cham_cong(**kwargs):
     try:
@@ -59,23 +96,20 @@ def get_list_cham_cong(**kwargs):
                       .run(as_dict=True)
                       )
         new_shift = group_fields(shift_type, "shift")
-        message = translations.get("successfully").get(get_language())
-        gen_response(200, message, new_shift)
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()), new_shift)
     except Exception as e:
-        # message = translations.get("error").get(get_language())
-        # gen_response(500, message, [])
         exception_handel(e)
 
-@frappe.whitelist(methods="GET")
+
+@frappe.whitelist(methods="GET",allow_guest= True)
 def get_shift_now():
     try:
-        print("vao day")
         name= get_employee_id()
         shift_now = get_shift_type_now(name)
         if shift_now["shift_type_now"]:
             shift_now["shift_type_now"]["start_time_today"] = delta_to_time_now(shift_now["shift_type_now"]["start_time"])
             shift_now["shift_type_now"]["end_time_today"] =delta_to_time_now(shift_now["shift_type_now"]["end_time"])
-        gen_response(200,"",shift_now) 
+        gen_response(200,i18n.t('translate.successfully', locale=get_language()),shift_now) 
     except Exception as e:
         exception_handel(e)
 
@@ -90,7 +124,7 @@ def get_shift_list():
         for x in list_shift:
             x["start_time_today"] = delta_to_time_now(x["start_time"])
             x["end_time_today"] = delta_to_time_now(x['end_time'])
-        gen_response(200,"",list_shift) 
+        gen_response(200, i18n.t('translate.successfully', locale=get_language()),list_shift) 
     except Exception as e:
         exception_handel(e)
 
@@ -99,8 +133,6 @@ def get_list_shift_request(**kwargs):
     try:
         employeID = get_employee_id()
         status = kwargs.get('status')
-        # start_time = kwargs.get('start_time')
-        # end_time = kwargs.get('end_time')
         UNIX_TIMESTAMP = CustomFunction('UNIX_TIMESTAMP', ['day'])
         page_size = 20 if not kwargs.get(
             'page_size') else int(kwargs.get('page_size'))
@@ -111,15 +143,9 @@ def get_list_shift_request(**kwargs):
         ShiftType = frappe.qb.DocType('Shift Type')
         Employee = frappe.qb.DocType('Employee')
         ShiftRequest = frappe.qb.DocType('Shift Request')
-        # if start_time:
-        #     start_time = datetime.fromtimestamp(int(start_time))
-        # if end_time:
-        #     end_time = datetime.fromtimestamp(int(end_time))
         query_code = (ShiftRequest.employee == employeID)
         if status:
             query_code = query_code & ShiftRequest.status == status
-        # if (start_time) and (end_time):
-        #     query_code = query_code & (ShiftRequest.creation.between(start_time, end_time))
         queryShift = (frappe.qb.from_(ShiftRequest)
                       .inner_join(ShiftType)
                       .on(ShiftRequest.shift_type == ShiftType.name)
@@ -134,8 +160,8 @@ def get_list_shift_request(**kwargs):
         queryOpen = frappe.db.count('Shift Request', {'status': 'Draft', 'employee': employeID})
         queryApprover = frappe.db.count('Shift Request', {'status': 'Approved', 'employee': employeID})
         queryReject = frappe.db.count('Shift Request', {'status': 'Rejected', 'employee': employeID})
-        # shift_assignment = frappe.db.get_list('Shift Assignment', filters=myfilter , fields=["*"])
-        return gen_response(200, " ", {
+        
+        return gen_response(200, i18n.t('translate.successfully', locale=get_language()), {
             "data": queryShift,
             "queryOpen": queryOpen,
             "queryApprover": queryApprover,
@@ -144,7 +170,6 @@ def get_list_shift_request(**kwargs):
     except Exception as e:
         exception_handel(e)
 
-from frappe.desk.search import search_link, build_for_autosuggest, search_widget
 
 # create shift assignment
 @frappe.whitelist(methods="POST")
@@ -172,23 +197,17 @@ def create_shift_request(**data) :
                          )
  
         new_shift_request.insert()
-        gen_response(201,"Success",{
+        gen_response(201,i18n.t('translate.create_success', locale=get_language()),{
             "shift_request": new_shift_request,
             "approver_info": approver_info[0]
         })
     except Exception as e:
         exception_handel(e)
 
-# tất cả các ca
+# all shifts
 @frappe.whitelist(methods='GET')
 def all_shift():
     try:
-        # search_link(
-        #     doctype='Shift Type',
-        #     txt='',
-        #     reference_doctype="Shift Request",
-        #     ignore_user_permissions=False,
-        # )
         search_widget(
             doctype='Shift Type',
             txt= ''.strip(),
@@ -205,9 +224,9 @@ def all_shift():
     except Exception as e:
         exception_handel(e)
 
-from frappe.client import validate_link
-import json
-# thông tin người phê duyệt
+
+
+# approver information
 @frappe.whitelist(methods='GET')
 def get_approved():
     try:
@@ -223,6 +242,6 @@ def get_approved():
                          .run(as_dict=True)
                          )
  
-        gen_response(200,"",approver_info)
+        gen_response(200,i18n.t('translate.successfully', locale=get_language()),approver_info)
     except Exception as e:
         exception_handel(e)
