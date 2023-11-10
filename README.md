@@ -10,7 +10,9 @@ MBW Employee Service is a Frappe app that allows employees to access and manage 
 
     Before installing the MBW Employee Service app, make sure you have the following requirements met:
     - Frappe framework is installed and set up on your system.
-    - ERPNext and HRMS are installed and configured.
+    - ERPNext v14.45.4 (HEAD)
+    - HRMS v14.14.0 (HEAD)
+    - FCM Notification 
 
 2. **Install the App**
     Run the following commands to install the MBW Employee Service app:<br/>
