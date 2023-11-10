@@ -1,6 +1,8 @@
 import frappe
 import json
+from frappe.client import validate_link
 from mbw_employee.api.common import (
+    get_last_check, 
     gen_response,
     get_employee_id,
     exception_handel,
@@ -9,10 +11,12 @@ from mbw_employee.api.common import (
     today_list_shift,
     delta_to_time_now,
     group_fields,
-    get_ip_network
-)
-from frappe.client import validate_link
-from frappe.desk.search import search_link, build_for_autosuggest, search_widget
+    get_ip_network,
+    nextshift,
+    enable_check_shift
+    )
+    
+
 from datetime import datetime
 from pypika import  Order, CustomFunction
 from mbw_employee.config_translate import i18n
@@ -25,8 +29,30 @@ def checkin_shift(**data):
         ip_network = get_ip_network()
         id_position = dict(data).get("timesheet_position")
         wifi_mac = dict(data).get("wifi_mac")
+        shift = dict(data).get("shift")
         timesheet_position_detail = frappe.get_doc("TimeSheet Position",id_position)
         name= get_employee_id()
+        time_now = datetime.now()
+
+        if not enable_check_shift(name, shift,time_now) : 
+            gen_response(500, i18n.t('translate.not_found_shift', locale=get_language()),[])
+            return
+        # Get the record of today's last shift or the most recent cross-day shift
+        last_check = get_last_check(name)
+
+        # Get the transmitted shift information
+        shift_detail = frappe.get_doc("Shift Type",shift)
+        # Check the record status 
+        if last_check :
+            if last_check.get("log_type") == "OUT": 
+                time_enable = delta_to_time_now(shift_detail.get("start_time"))
+                if time_now.timestamp() < time_enable : 
+                    gen_response(500, i18n.t('translate.time_not_in', locale=get_language()),[])
+                    return
+            elif last_check.get('shift').lower() != shift.lower()  :
+                gen_response(500, i18n.t('translate.shift_not_out', locale=get_language()),[])
+                return
+        # check location
         if timesheet_position_detail:
             wifi_position = timesheet_position_detail.get('wifi')
             mac_position = timesheet_position_detail.get('mac')
@@ -105,11 +131,42 @@ def get_list_cham_cong(**kwargs):
 def get_shift_now():
     try:
         name= get_employee_id()
-        shift_now = get_shift_type_now(name)
-        if shift_now["shift_type_now"]:
-            shift_now["shift_type_now"]["start_time_today"] = delta_to_time_now(shift_now["shift_type_now"]["start_time"])
-            shift_now["shift_type_now"]["end_time_today"] =delta_to_time_now(shift_now["shift_type_now"]["end_time"])
+        shift_now = {
+            "shift_type_now" : False,
+            "shift_status" : False
+                }
+        # take the last shift
+        last_check = get_last_check(name)
+        # return last_check
+        if last_check  :  
+            if last_check.get("log_type") == "OUT" : 
+                time_now = datetime.now()
+                next_shift =  nextshift(name, time_now)
+                print(next_shift)
+                shift_now = {
+                "shift_type_now" :next_shift,
+                "shift_status" : False
+                }
+            else :
+                shift_now = {
+                    "shift_type_now" : {
+                        "name": last_check.get("shift"),
+                        "start_time": last_check.get("start_time"),
+                        "end_time": last_check.get("end_time"),
+                        "allow_check_out_after_shift_end_time": last_check.get("allow_check_out_after_shift_end_time"),
+                        "begin_check_in_before_shift_start_time": last_check.get("begin_check_in_before_shift_start_time"),
+                        "start_time_today": last_check.get("start_time_today"),
+                        "end_time_today": last_check.get("end_time_today"),
+                    },
+                    "shift_status" : "IN"
+                    }
+            if shift_now["shift_type_now"]:
+                shift_now["shift_type_now"]["start_time_today"] = delta_to_time_now(shift_now["shift_type_now"]["start_time"])
+                shift_now["shift_type_now"]["end_time_today"] =delta_to_time_now(shift_now["shift_type_now"]["end_time"])
+        
         gen_response(200,i18n.t('translate.successfully', locale=get_language()),shift_now) 
+
+        return
     except Exception as e:
         exception_handel(e)
 
@@ -170,6 +227,7 @@ def get_list_shift_request(**kwargs):
     except Exception as e:
         exception_handel(e)
 
+from frappe.desk.search import search_link, build_for_autosuggest, search_widget
 
 # create shift assignment
 @frappe.whitelist(methods="POST")
@@ -223,7 +281,6 @@ def all_shift():
         del frappe.response["values"]
     except Exception as e:
         exception_handel(e)
-
 
 
 # approver information
