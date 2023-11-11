@@ -19,6 +19,8 @@ from pypika import Query, Table, Field, Order
 import array
 
 BASE_URL = frappe.utils.get_request_site_address()
+
+# ==================================================================================================
 ShiftType = frappe.qb.DocType('Shift Type')
 ShiftAssignment = frappe.qb.DocType('Shift Assignment')
 EmployeeCheckin = frappe.qb.DocType("Employee Checkin")
@@ -27,13 +29,13 @@ EmployeeCheckin = frappe.qb.DocType("Employee Checkin")
 def get_last_check(employee):
     time_now = datetime.now()
     last_check = (frappe.qb.from_(EmployeeCheckin)
-                .inner_join(ShiftType)
-                .on(EmployeeCheckin.shift == ShiftType.name)
-                .limit(1)
-                .where(EmployeeCheckin.employee ==  employee)
-                .orderby(EmployeeCheckin.time,order= Order.desc)
-                .select('*')
-                .run(as_dict=True))
+                              .inner_join(ShiftType)
+                              .on(EmployeeCheckin.shift == ShiftType.name)
+                              .limit(1)
+                              .where(EmployeeCheckin.employee ==  employee)
+                              .orderby(EmployeeCheckin.time,order= Order.desc)
+                              .select('*')
+                              .run(as_dict=True))
     if not last_check:
         return False
     last_check = last_check[0]
@@ -42,7 +44,7 @@ def get_last_check(employee):
     if last_check.get("start_time") > last_check.get('end_time'):
         if  last_check.get("time") > before_a_day :
             return last_check
-        return false
+        return False
     else :
         if last_check.get("time") > time_now.replace(hour=0,minute=0,second=0) :
             return last_check
@@ -137,21 +139,21 @@ def inshift(employee_name,time_now) :
 # next shift
 def nextshift(employee_name,time_now) :
     data = (frappe.qb.from_(ShiftType)
-            .inner_join(ShiftAssignment)
-            .on(ShiftType.name == ShiftAssignment.shift_type)
-            .where(
-                (ShiftAssignment.employee == employee_name) 
-                & (time_now.time() <= ShiftType.start_time) 
-                &
-                (
-                    ((time_now.date() >= ShiftAssignment.start_date) & (time_now.date() <= ShiftAssignment.end_date)) |
-                    ((time_now.date() >= ShiftAssignment.start_date) | (ShiftAssignment.end_date == False))
-                )
-                )
-            .select(ShiftType.name, ShiftType.start_time, ShiftType.end_time, ShiftType.allow_check_out_after_shift_end_time, ShiftType.begin_check_in_before_shift_start_time)
-            .run(as_dict=True)
-            )
-
+                        .inner_join(ShiftAssignment)
+                        .on(ShiftType.name == ShiftAssignment.shift_type)
+                        .where(
+                            (ShiftAssignment.employee == employee_name) 
+                            & (time_now.time() <= ShiftType.start_time) 
+                            &
+                            (
+                                ((time_now.date() >= ShiftAssignment.start_date) & (time_now.date() <= ShiftAssignment.end_date)) |
+                                ((time_now.date() >= ShiftAssignment.start_date) | (ShiftAssignment.end_date == False))
+                            )
+                            )
+                        .orderby(ShiftType.start_time,order= Order.asc)
+                        .select(ShiftType.name, ShiftType.start_time, ShiftType.end_time, ShiftType.allow_check_out_after_shift_end_time, ShiftType.begin_check_in_before_shift_start_time)
+                        .run(as_dict=True)
+                        )
     if len(data) == 0:
         return False
     return data[0]
@@ -166,6 +168,7 @@ def shift_now(employee_name, time_now):
             return False
         return next_shift
     return in_shift
+# ======================================================================================
 
 
 # Get employee reports
@@ -297,6 +300,12 @@ def get_global_defaults():
 
 
 def remove_default_fields(data):
+    # Example usage:
+    # remove_default_fields(
+    #     json.loads(
+    #         frappe.get_doc("Address", "name").as_json()
+    #     )
+    # )
     for row in [
         "owner",
         "creation",

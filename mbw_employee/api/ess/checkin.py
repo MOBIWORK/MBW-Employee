@@ -1,21 +1,15 @@
 import frappe
 import json
-from frappe.client import validate_link
-from mbw_employee.api.common import (
-    get_last_check, 
-    gen_response,
-    get_employee_id,
-    exception_handel,
-    get_language,
-    get_shift_type_now,
+from mbw_employee.api.common import  (get_last_check, gen_response,get_employee_id,exception_handel,get_language,get_shift_type_now,
     today_list_shift,
     delta_to_time_now,
     group_fields,
     get_ip_network,
     nextshift,
+    inshift,
     enable_check_shift
     )
-    
+
 
 from datetime import datetime
 from pypika import  Order, CustomFunction
@@ -33,6 +27,9 @@ def checkin_shift(**data):
         timesheet_position_detail = frappe.get_doc("TimeSheet Position",id_position)
         name= get_employee_id()
         time_now = datetime.now()
+        if not id_position or not shift: 
+            gen_response(500, i18n.t('translate.invalid_value', locale=get_language()),[])
+            return
 
         if not enable_check_shift(name, shift,time_now) : 
             gen_response(500, i18n.t('translate.not_found_shift', locale=get_language()),[])
@@ -131,6 +128,7 @@ def get_list_cham_cong(**kwargs):
 def get_shift_now():
     try:
         name= get_employee_id()
+        time_now = datetime.now()
         shift_now = {
             "shift_type_now" : False,
             "shift_status" : False
@@ -140,11 +138,15 @@ def get_shift_now():
         # return last_check
         if last_check  :  
             if last_check.get("log_type") == "OUT" : 
-                time_now = datetime.now()
-                next_shift =  nextshift(name, time_now)
-                print(next_shift)
+                shift_suggest = False
+                in_shift = inshift(name, time_now)
+                if in_shift and in_shift.get("name") != last_check.get("shift"):
+                    shift_suggest = in_shift
+                else :
+                    shift_suggest =  nextshift(name, time_now)
+
                 shift_now = {
-                "shift_type_now" :next_shift,
+                "shift_type_now" :shift_suggest,
                 "shift_status" : False
                 }
             else :
@@ -160,10 +162,15 @@ def get_shift_now():
                     },
                     "shift_status" : "IN"
                     }
-            if shift_now["shift_type_now"]:
-                shift_now["shift_type_now"]["start_time_today"] = delta_to_time_now(shift_now["shift_type_now"]["start_time"])
-                shift_now["shift_type_now"]["end_time_today"] =delta_to_time_now(shift_now["shift_type_now"]["end_time"])
-        
+        else: 
+            in_shift = inshift(name, time_now)
+            shift_now = {
+            "shift_type_now" :in_shift,
+            "shift_status" : False
+            }
+        if shift_now["shift_type_now"]:
+            shift_now["shift_type_now"]["start_time_today"] = delta_to_time_now(shift_now["shift_type_now"]["start_time"])
+            shift_now["shift_type_now"]["end_time_today"] =delta_to_time_now(shift_now["shift_type_now"]["end_time"])
         gen_response(200,i18n.t('translate.successfully', locale=get_language()),shift_now) 
 
         return
@@ -217,7 +224,7 @@ def get_list_shift_request(**kwargs):
         queryOpen = frappe.db.count('Shift Request', {'status': 'Draft', 'employee': employeID})
         queryApprover = frappe.db.count('Shift Request', {'status': 'Approved', 'employee': employeID})
         queryReject = frappe.db.count('Shift Request', {'status': 'Rejected', 'employee': employeID})
-        
+        # shift_assignment = frappe.db.get_list('Shift Assignment', filters=myfilter , fields=["*"])
         return gen_response(200, i18n.t('translate.successfully', locale=get_language()), {
             "data": queryShift,
             "queryOpen": queryOpen,
@@ -281,6 +288,9 @@ def all_shift():
         del frappe.response["values"]
     except Exception as e:
         exception_handel(e)
+
+from frappe.client import validate_link
+import json
 
 
 # approver information
