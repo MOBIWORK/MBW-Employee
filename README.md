@@ -31,14 +31,6 @@ Note: Replace `<site_name>` with the name of your Frappe site.
     Setup Python and Node dependencies:
     bench setup requirements
 
-### License
-
-MBW Employee Service is distributed under the GNU/General Public License. See the LICENSE file for more information.
-
-### Support and Contact
-
-For any issues, questions, or feedback, please feel free to reach out via email: dev@mbw.vn
-
 ### User Guilde
 For the web version
 https://mbw-frappe.gitbook.io/user-guide-mbw-employee
@@ -51,4 +43,13 @@ Our company is still in the process of development and improvement. Here are som
 - Calculate late and early arrival times
 - The feature to approve requests from mobile.
 - Explanation of timekeeping in cases of forgetting to clock in or unexpected tasks.
+- 
+### License
+
+MBW Employee Service is distributed under the GNU/General Public License. See the LICENSE file for more information.
+
+### Support and Contact
+
+For any issues, questions, or feedback, please feel free to reach out via email: dev@mbw.vn
+
 
