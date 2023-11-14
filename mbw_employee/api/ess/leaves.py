@@ -3,12 +3,13 @@ import frappe
 from mbw_employee.api.common import (gen_response,exception_handel, get_language, get_employee_id, validate_datetime, validate_empty,get_user_id, get_employee_by_user, validate_image)
 from pypika import Order, CustomFunction, Tuple
 from datetime import datetime
-
+import json
 from mbw_employee.config_translate import i18n
 from frappe.utils import ( cint, flt )
 from hrms.hr.doctype.leave_application.leave_application import (get_leave_allocation_records, get_leave_balance_on, get_leaves_for_period, get_leaves_pending_approval_for_period, get_leave_approver)
 base_url = frappe.utils.get_request_site_address()
 
+#detail of leave
 @frappe.whitelist(methods='GET')
 def get_detail_leave(name):
     employee_id = get_employee_id()
@@ -32,6 +33,7 @@ def get_detail_leave(name):
         "avata_employee": avata_employee
     })
 
+#list of leaves
 @frappe.whitelist()
 def get_list_leave(**kwargs):
     try:
@@ -96,6 +98,7 @@ def get_list_leave(**kwargs):
     except Exception as e:
         gen_response(500, i18n.t('translate.error', locale=get_language()), [])
 
+#create a leave
 @frappe.whitelist(methods="POST")
 def create_leave(**kwargs):
     try:
@@ -151,6 +154,47 @@ def create_leave(**kwargs):
         if hasattr(e, "http_status_code") and e.http_status_code == 417:
             gen_response(417, f"{i18n.t('translate.employee', locale=get_language())} {employee_id} {i18n.t('translate.title_2', locale=get_language())} {new_doc.leave_type} {i18n.t('translate.from_date', locale=get_language())} {(new_doc.from_date).strftime('%d-%m-%Y')} {i18n.t('translate.to_date', locale=get_language())} {(new_doc.to_date).strftime('%d-%m-%Y')}")
         else:   exception_handel(e)
+
+##update a leave
+@frappe.whitelist(methods="PATCH")
+def update_leave(**data):
+    try:
+        list_fields_valid = ["name","leave_type","from_date","to_date","half_day","half_day_date","leave_approver","description"]
+        del data['cmd']
+        for ind, value in dict(data).items():
+            if ind not in list_fields_valid:
+                gen_response(500,i18n.t('translate.invalid_value', locale=get_language()),[])
+                return
+        if not data.get('name') :
+            gen_response(500,i18n.t('translate.name_require', locale=get_language()),[])
+            return
+        if data.get("half_day") == 1 and data.get("half_day_date") == "":
+            gen_response(500,i18n.t('translate.must_has_hafl_date', locale=get_language()),[])
+            return
+        
+        application_name = data.get('name')
+        doc = frappe.get_doc('Leave Application', application_name)
+        if not doc:
+            gen_response(500,i18n.t('translate.doc_not_found', locale=get_language()),[])
+            return
+        for field, value in dict(data).items():
+            setattr(doc, field, value)
+        doc.save()
+        gen_response(200, i18n.t('translate.update_success', locale=get_language()),doc)
+
+        return
+    except Exception as e:
+        exception_handel(e)
+
+#delete a leave
+@frappe.whitelist(methods="DELETE")
+def delete_leave(name):
+    try:
+
+        frappe.delete_doc('Leave Application',name)
+        gen_response(200, i18n.t('translate.delete_success', locale=get_language()),[])
+    except Exception as e:
+        exception_handel(e)
 
 @frappe.whitelist(methods="GET")
 def get_list_leave_type(**kwargs):
